@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SHIPPER
+  BROKER
+  ADMIN
+}
+
+enum RFQStatus {
+  OPEN
+  BOOKED
+  CANCELLED
+  EXPIRED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ShipmentStatus {
+  BOOKED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  DELIVERY_CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  name         String?
+  companyName  String?
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  rfqs               RFQ[]          @relation("ShipperRFQs")
+  offers             Offer[]        @relation("BrokerOffers")
+  shipmentsAsShipper Shipment[]     @relation("ShipperShipments")
+  shipmentsAsBroker  Shipment[]     @relation("BrokerShipments")
+  payments           Payment[]      @relation("ShipperPayments")
+  refreshTokens      RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model RFQ {
+  id           String    @id @default(uuid()) @db.Uuid
+  shipperId    String    @db.Uuid
+  origin       String
+  destination  String
+  cargoType    String
+  weight       Decimal?  @db.Decimal(12, 2)
+  volume       Decimal?  @db.Decimal(12, 2)
+  pickupDate   DateTime?
+  deliveryDate DateTime?
+  notes        String?
+  status       RFQStatus @default(OPEN)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  shipper  User      @relation("ShipperRFQs", fields: [shipperId], references: [id], onDelete: Restrict)
+  offers   Offer[]
+  shipment Shipment?
+
+  @@index([shipperId])
+  @@index([status])
+  @@map("rfqs")
+}
+
+model Offer {
+  id          String      @id @default(uuid()) @db.Uuid
+  rfqId       String      @db.Uuid
+  brokerId    String      @db.Uuid
+  price       Decimal     @db.Decimal(12, 2)
+  currency    String      @default("USD")
+  transitDays Int?
+  notes       String?
+  status      OfferStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  rfq      RFQ       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  broker   User      @relation("BrokerOffers", fields: [brokerId], references: [id], onDelete: Restrict)
+  shipment Shipment?
+
+  @@unique([rfqId, brokerId])
+  @@index([brokerId])
+  @@index([status])
+  @@map("offers")
+}
+
+model Shipment {
+  id          String         @id @default(uuid()) @db.Uuid
+  rfqId       String         @unique @db.Uuid
+  offerId     String         @unique @db.Uuid
+  shipperId   String         @db.Uuid
+  brokerId    String         @db.Uuid
+  origin      String
+  destination String
+  cargoType   String
+  price       Decimal        @db.Decimal(12, 2)
+  currency    String         @default("USD")
+  status      ShipmentStatus @default(BOOKED)
+  deliveredAt DateTime?
+  confirmedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  rfq     RFQ      @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  offer   Offer    @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  shipper User     @relation("ShipperShipments", fields: [shipperId], references: [id], onDelete: Restrict)
+  broker  User     @relation("BrokerShipments", fields: [brokerId], references: [id], onDelete: Restrict)
+  payment Payment?
+
+  @@index([shipperId])
+  @@index([brokerId])
+  @@index([status])
+  @@map("shipments")
+}
+
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  shipmentId  String        @unique @db.Uuid
+  shipperId   String        @db.Uuid
+  amount      Decimal       @db.Decimal(12, 2)
+  currency    String        @default("USD")
+  status      PaymentStatus @default(PENDING)
+  provider    String?
+  providerRef String?
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  shipper  User     @relation("ShipperPayments", fields: [shipperId], references: [id], onDelete: Restrict)
+
+  @@index([shipperId])
+  @@index([status])
+  @@map("payments")
+}
