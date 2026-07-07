@@ -53,6 +53,13 @@ export class OffersController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SHIPPER)
+  @Post('offers/:id/book')
+  book(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.offersService.book(user, id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.BROKER)
   @Patch('offers/:id')
   update(

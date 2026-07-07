@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { OffersModule } from './offers/offers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RfqsModule } from './rfqs/rfqs.module';
+import { ShipmentsModule } from './shipments/shipments.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RfqsModule } from './rfqs/rfqs.module';
     AuthModule,
     RfqsModule,
     OffersModule,
+    ShipmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

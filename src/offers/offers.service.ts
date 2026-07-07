@@ -83,6 +83,61 @@ export class OffersService {
     return offer;
   }
 
+  book(user: AuthUser, id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const offer = await tx.offer.findUnique({
+        where: { id },
+        include: { rfq: true },
+      });
+
+      if (!offer || offer.rfq.shipperId !== user.sub) {
+        throw new NotFoundException('Offer not found');
+      }
+
+      if (offer.rfq.status !== RFQStatus.OPEN) {
+        throw new BadRequestException('Only offers on open RFQs can be booked');
+      }
+
+      if (offer.status !== OfferStatus.PENDING) {
+        throw new BadRequestException('Only pending offers can be booked');
+      }
+
+      await tx.offer.update({
+        where: { id: offer.id },
+        data: { status: OfferStatus.ACCEPTED },
+      });
+
+      await tx.offer.updateMany({
+        where: {
+          rfqId: offer.rfqId,
+          id: { not: offer.id },
+          status: OfferStatus.PENDING,
+        },
+        data: { status: OfferStatus.REJECTED },
+      });
+
+      await tx.rFQ.update({
+        where: { id: offer.rfqId },
+        data: { status: RFQStatus.BOOKED },
+      });
+
+      return tx.shipment.create({
+        data: {
+          rfqId: offer.rfqId,
+          offerId: offer.id,
+          shipperId: offer.rfq.shipperId,
+          brokerId: offer.brokerId,
+          origin: offer.rfq.origin,
+          destination: offer.rfq.destination,
+          cargoType: offer.rfq.cargoType,
+          price: offer.price,
+          currency: offer.currency,
+        },
+        include: this.shipmentInclude(),
+      });
+    });
+  }
+
   async update(user: AuthUser, id: string, dto: UpdateOfferDto) {
     const offer = await this.findOwnedPendingOfferOnOpenRfq(user, id);
 
@@ -244,5 +299,42 @@ export class OffersService {
         },
       },
     } satisfies Prisma.OfferInclude;
+  }
+
+  private shipmentInclude() {
+    return {
+      rfq: {
+        select: {
+          id: true,
+          origin: true,
+          destination: true,
+          cargoType: true,
+          status: true,
+        },
+      },
+      offer: {
+        select: {
+          id: true,
+          price: true,
+          currency: true,
+          transitDays: true,
+          status: true,
+        },
+      },
+      broker: {
+        select: {
+          id: true,
+          name: true,
+          companyName: true,
+        },
+      },
+      shipper: {
+        select: {
+          id: true,
+          name: true,
+          companyName: true,
+        },
+      },
+    } satisfies Prisma.ShipmentInclude;
   }
 }

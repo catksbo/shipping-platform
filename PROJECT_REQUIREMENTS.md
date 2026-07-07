@@ -1,6 +1,6 @@
 # Shipping Platform Requirements And Progress
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Product Goal
 
@@ -145,6 +145,7 @@ Offer endpoints:
 - `GET /offers/my`
 - `GET /rfqs/:rfqId/offers`
 - `GET /offers/:id`
+- `POST /offers/:id/book`
 - `PATCH /offers/:id`
 - `PATCH /offers/:id/withdraw`
 
@@ -156,7 +157,35 @@ Offer behavior:
 - Broker can list their own offers.
 - Shipper can view offers for their own RFQ.
 - Broker can update or withdraw their own pending offer only while the RFQ is `OPEN`.
-- Booking/acceptance is not implemented yet.
+- Shipper can book one pending offer on their own open RFQ.
+- Booking accepts the selected offer, rejects competing pending offers, marks the RFQ as `BOOKED`, and creates a shipment.
+
+### Shipments
+
+Implemented:
+
+- `ShipmentsModule`
+- `ShipmentsController`
+- `ShipmentsService`
+- Shipment status update DTO
+
+Shipment endpoints:
+
+- `GET /shipments/my`
+- `GET /shipments/:id`
+- `PATCH /shipments/:id/status`
+- `POST /shipments/:id/confirm-delivery`
+
+Shipment behavior:
+
+- Shipper can list their own shipments.
+- Broker can list their assigned shipments.
+- Shipper, broker, and admin can view shipment detail when authorized.
+- Broker can update their assigned shipment to `PICKED_UP`, `IN_TRANSIT`, `DELIVERED`, or `CANCELLED`.
+- Broker setting a shipment to `DELIVERED` records `deliveredAt`.
+- Shipper can confirm delivery only after broker marks the shipment as `DELIVERED`.
+- Delivery confirmation sets status to `DELIVERY_CONFIRMED` and records `confirmedAt`.
+- Terminal shipments cannot be updated by brokers.
 
 ## Implemented Tooling And Scripts
 
@@ -176,11 +205,11 @@ Seed file:
 - Currently seeds demo users only.
 - It is standalone and not wired into `package.json`.
 
-## Remaining Backend Work
+## Backend Work Status And Remaining Work
 
 ### Offer Booking
 
-Still needed:
+Implemented:
 
 - Endpoint for shipper to accept/book an offer.
 - Transaction to:
@@ -192,13 +221,13 @@ Still needed:
   - update RFQ status to `BOOKED`
   - create shipment from RFQ and offer data
 
-Likely endpoint:
+Endpoint:
 
 - `POST /offers/:id/book`
 
 ### Shipments
 
-Still needed:
+Implemented:
 
 - `ShipmentsModule`
 - Shipper/broker shipment listing
@@ -206,7 +235,7 @@ Still needed:
 - Broker shipment status update endpoint
 - Shipper delivery confirmation endpoint
 
-Likely endpoints:
+Endpoints:
 
 - `GET /shipments/my`
 - `GET /shipments/:id`
@@ -270,4 +299,4 @@ Commands used during development included:
 - A Git safe-directory warning appeared under the sandbox user when running `git status`.
 - The default `AppController` and `AppService` still exist.
 - No dedicated `UsersModule` exists; auth uses Prisma user queries directly.
-- No explicit unit tests have been added yet for Auth, RFQs, or Offers beyond the starter Jest test.
+- Unit tests now cover offer booking and shipment service behavior; Auth, RFQs, and broader integration flows still need dedicated tests.
