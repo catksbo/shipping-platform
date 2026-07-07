@@ -1,6 +1,6 @@
 # Shipping Platform Requirements And Progress
 
-Last updated: 2026-07-06
+Last updated: 2026-07-08
 
 ## Product Goal
 
@@ -187,6 +187,31 @@ Shipment behavior:
 - Delivery confirmation sets status to `DELIVERY_CONFIRMED` and records `confirmedAt`.
 - Terminal shipments cannot be updated by brokers.
 
+### Payments
+
+Implemented:
+
+- `PaymentsModule`
+- `PaymentsController`
+- `PaymentsService`
+
+Payment endpoints:
+
+- `POST /shipments/:shipmentId/payments`
+- `GET /payments/my`
+- `GET /payments/:id`
+
+Payment behavior:
+
+- Shipper can create a pending payment after delivery confirmation.
+- Payment amount and currency are copied from the shipment, not accepted from the request body.
+- Payment creation requires the shipment to belong to the current shipper.
+- Payment creation requires shipment status `DELIVERY_CONFIRMED`.
+- One payment can exist per shipment.
+- Payment provider fields remain empty until external provider integration is added.
+- Shipper can list their own payments.
+- Shipper can view their own payment detail; admin can view any payment detail.
+
 ## Implemented Tooling And Scripts
 
 Available npm scripts:
@@ -244,20 +269,23 @@ Endpoints:
 
 ### Payments
 
-Still needed:
+Implemented:
 
 - `PaymentsModule`
 - Payment creation after delivery confirmation
 - Payment history for shipper
-- Payment status updates
-- Optional payment provider webhook
+- Payment detail endpoint
 
-Likely endpoints:
+Endpoints:
 
 - `POST /shipments/:shipmentId/payments`
 - `GET /payments/my`
 - `GET /payments/:id`
-- `POST /payments/webhook`
+
+Still needed later:
+
+- Payment status updates from external provider integration
+- Optional payment provider webhook
 
 ### RFQ Detail With Offers
 

@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { OffersModule } from './offers/offers.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RfqsModule } from './rfqs/rfqs.module';
 import { ShipmentsModule } from './shipments/shipments.module';
@@ -16,6 +17,7 @@ import { ShipmentsModule } from './shipments/shipments.module';
     RfqsModule,
     OffersModule,
     ShipmentsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
