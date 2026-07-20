@@ -7,6 +7,7 @@ export type SafeUser = {
   name: string | null;
   companyName: string | null;
   phone: string | null;
+  stripeAccountId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

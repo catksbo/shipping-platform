@@ -3,7 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Shipment, ShipmentStatus, UserRole } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  Shipment,
+  ShipmentStatus,
+  UserRole,
+} from '@prisma/client';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
@@ -76,7 +82,14 @@ export class ShipmentsService {
   }
 
   async confirmDelivery(user: AuthUser, id: string) {
-    const shipment = await this.prisma.shipment.findUnique({ where: { id } });
+    const shipment = await this.prisma.shipment.findUnique({
+      where: { id },
+      include: {
+        broker: {
+          select: { stripeAccountId: true },
+        },
+      },
+    });
 
     if (!shipment || shipment.shipperId !== user.sub) {
       throw new NotFoundException('Shipment not found');
@@ -86,13 +99,42 @@ export class ShipmentsService {
       throw new BadRequestException('Only delivered shipments can be confirmed');
     }
 
-    return this.prisma.shipment.update({
-      where: { id: shipment.id },
-      data: {
-        status: ShipmentStatus.DELIVERY_CONFIRMED,
-        confirmedAt: new Date(),
-      },
-      include: this.defaultInclude(),
+    const grossAmount = shipment.price;
+    const platformFeeAmount = this.calculatePlatformFee(grossAmount);
+    const brokerAmount = grossAmount.minus(platformFeeAmount);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.shipment.update({
+        where: { id: shipment.id },
+        data: {
+          status: ShipmentStatus.DELIVERY_CONFIRMED,
+          confirmedAt: new Date(),
+        },
+      });
+
+      await tx.payment.create({
+        data: {
+          shipmentId: shipment.id,
+          shipperId: shipment.shipperId,
+          amount: grossAmount,
+          grossAmount,
+          platformFeeAmount,
+          brokerAmount,
+          currency: shipment.currency,
+          status: PaymentStatus.PENDING,
+          provider: null,
+          providerRef: null,
+          stripeCheckoutSessionId: null,
+          stripePaymentIntentId: null,
+          stripeTransferDestination: shipment.broker.stripeAccountId,
+          paidAt: null,
+        },
+      });
+
+      return tx.shipment.findUniqueOrThrow({
+        where: { id: shipment.id },
+        include: this.defaultInclude(),
+      });
     });
   }
 
@@ -126,6 +168,14 @@ export class ShipmentsService {
     }
 
     return status;
+  }
+
+  private calculatePlatformFee(amount: Prisma.Decimal) {
+    const feePercent = new Prisma.Decimal(
+      process.env.PLATFORM_FEE_PERCENT ?? '10',
+    );
+
+    return amount.mul(feePercent).div(100).toDecimalPlaces(2);
   }
 
   private defaultInclude() {

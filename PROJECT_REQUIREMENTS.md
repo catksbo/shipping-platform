@@ -1,6 +1,6 @@
 # Shipping Platform Requirements And Progress
 
-Last updated: 2026-07-08
+Last updated: 2026-07-15
 
 ## Product Goal
 
@@ -11,8 +11,8 @@ Build a backend API for a shipping platform with two primary user roles:
 
 ## Core Workflow Requirements
 
-1. Shipper signs up/signs in.
-2. Broker signs up/signs in.
+1. Shipper signs up/signs in with email/password or Google OAuth2.
+2. Broker signs up/signs in with email/password or Google OAuth2.
 3. Shipper creates an RFQ.
 4. Shipper can view their own RFQs in "my RFQs".
 5. Broker can view available RFQs.
@@ -24,7 +24,7 @@ Build a backend API for a shipping platform with two primary user roles:
 11. Shipper and broker can view their shipments.
 12. Broker updates shipment status.
 13. Shipper confirms delivery.
-14. Shipper can pay after delivery confirmation.
+14. Shipper is automatically given a pending payment option after delivery confirmation.
 15. Shipper can view previous and ongoing payments.
 
 ## Technical Stack
@@ -34,8 +34,10 @@ Build a backend API for a shipping platform with two primary user roles:
 - PostgreSQL database
 - Neon Postgres configured through `DATABASE_URL`
 - JWT authentication
+- Google OAuth2 sign-in
 - Stored refresh tokens
 - Bcrypt password hashing
+- Stripe payment processing
 
 ## Implemented Database Models
 
@@ -102,6 +104,9 @@ Auth behavior:
 - Refresh token hashes are stored in the `refresh_tokens` table.
 - Passwords are hashed with bcrypt.
 - `@CurrentUser()` reads the authenticated user from `request.user`.
+- Google OAuth2 sign-in should allow shippers and brokers to authenticate with Google.
+- Google OAuth2 users should still receive the same app access token and refresh token response shape.
+- Google OAuth2 account linking should prevent duplicate accounts for the same email/provider identity.
 
 ### RFQs
 
@@ -184,7 +189,7 @@ Shipment behavior:
 - Broker can update their assigned shipment to `PICKED_UP`, `IN_TRANSIT`, `DELIVERED`, or `CANCELLED`.
 - Broker setting a shipment to `DELIVERED` records `deliveredAt`.
 - Shipper can confirm delivery only after broker marks the shipment as `DELIVERED`.
-- Delivery confirmation sets status to `DELIVERY_CONFIRMED` and records `confirmedAt`.
+- Delivery confirmation sets status to `DELIVERY_CONFIRMED`, records `confirmedAt`, and creates a pending payment option.
 - Terminal shipments cannot be updated by brokers.
 
 ### Payments
@@ -203,12 +208,15 @@ Payment endpoints:
 
 Payment behavior:
 
-- Shipper can create a pending payment after delivery confirmation.
+- Shipper is given a pending payment after delivery confirmation.
 - Payment amount and currency are copied from the shipment, not accepted from the request body.
 - Payment creation requires the shipment to belong to the current shipper.
 - Payment creation requires shipment status `DELIVERY_CONFIRMED`.
 - One payment can exist per shipment.
-- Payment provider fields remain empty until external provider integration is added.
+- If a payment already exists for a shipment, the existing payment is returned.
+- Stripe should be used to create checkout/payment sessions for pending payments.
+- Stripe provider identifiers should be stored in `provider` and `providerRef`.
+- Stripe webhook handling should update payment status to `PROCESSING`, `PAID`, `FAILED`, or `REFUNDED` based on provider events.
 - Shipper can list their own payments.
 - Shipper can view their own payment detail; admin can view any payment detail.
 
@@ -284,8 +292,29 @@ Endpoints:
 
 Still needed later:
 
-- Payment status updates from external provider integration
-- Optional payment provider webhook
+- Stripe checkout/payment session creation
+- Stripe webhook endpoint and signature verification
+- Payment status updates from Stripe events
+
+### Google OAuth2 Sign-In
+
+Still needed:
+
+- Google OAuth2 strategy/configuration.
+- Auth endpoints for starting Google sign-in and handling the callback.
+- User account lookup/linking by Google provider identity and verified email.
+- JWT access token and stored refresh token issuance after successful Google sign-in.
+- Environment variables for Google client ID, client secret, and callback URL.
+
+### Stripe Payments
+
+Still needed:
+
+- Stripe SDK integration.
+- Payment session creation for pending shipment payments.
+- Stripe webhook endpoint with signature verification.
+- Mapping Stripe events to internal `PaymentStatus`.
+- Environment variables for Stripe secret key, webhook secret, and frontend success/cancel URLs.
 
 ### RFQ Detail With Offers
 

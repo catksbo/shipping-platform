@@ -14,8 +14,6 @@ import { RefreshTokenDto, SignInDto, SignUpDto } from './dto/auth.dto';
 import { AuthUser } from './types/auth-user.type';
 import { SafeUser } from './types/safe-user.type';
 
-const ACCESS_TOKEN_EXPIRES_IN = (process.env.JWT_ACCESS_EXPIRES_IN ??
-  '15m') as JwtSignOptions['expiresIn'];
 const REFRESH_TOKEN_DAYS = Number(process.env.JWT_REFRESH_EXPIRES_DAYS ?? 30);
 const BCRYPT_ROUNDS = 12;
 
@@ -46,6 +44,8 @@ export class AuthService {
         name: dto.name,
         companyName: dto.companyName,
         phone: dto.phone,
+        stripeAccountId:
+          dto.role === UserRole.BROKER ? dto.stripeAccountId : undefined,
       },
     });
 
@@ -151,7 +151,8 @@ export class AuthService {
 
     return this.jwtService.signAsync(payload, {
       secret: process.env.JWT_SECRET ?? 'dev_jwt_secret_change_me',
-      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN ??
+        '15m') as JwtSignOptions['expiresIn'],
     });
   }
 
@@ -183,6 +184,7 @@ export class AuthService {
       name: user.name,
       companyName: user.companyName,
       phone: user.phone,
+      stripeAccountId: user.stripeAccountId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

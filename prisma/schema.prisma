@@ -57,6 +57,7 @@ model User {
   name         String?
   companyName  String?
   phone        String?
+  stripeAccountId String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -165,10 +166,16 @@ model Payment {
   shipmentId  String        @unique @db.Uuid
   shipperId   String        @db.Uuid
   amount      Decimal       @db.Decimal(12, 2)
+  grossAmount Decimal       @default(0) @db.Decimal(12, 2)
+  platformFeeAmount Decimal @default(0) @db.Decimal(12, 2)
+  brokerAmount Decimal      @default(0) @db.Decimal(12, 2)
   currency    String        @default("USD")
   status      PaymentStatus @default(PENDING)
   provider    String?
   providerRef String?
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  stripeTransferDestination String?
   paidAt      DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma, ShipmentStatus, UserRole } from '@prisma/client';
+import { PaymentStatus, Prisma, ShipmentStatus, UserRole } from '@prisma/client';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type { PrismaService } from '../prisma/prisma.service';
 import { ShipmentsService } from './shipments.service';
@@ -33,14 +33,47 @@ describe('ShipmentsService', () => {
     confirmedAt: null,
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+    broker: {
+      stripeAccountId: 'acct_broker_123',
+    },
+  };
+
+  const basePayment = {
+    id: 'payment-1',
+    shipmentId: 'shipment-1',
+    shipperId: 'shipper-1',
+    amount: new Prisma.Decimal(1200),
+    grossAmount: new Prisma.Decimal(1200),
+    platformFeeAmount: new Prisma.Decimal(120),
+    brokerAmount: new Prisma.Decimal(1080),
+    currency: 'USD',
+    status: PaymentStatus.PENDING,
+    provider: null,
+    providerRef: null,
+    stripeCheckoutSessionId: null,
+    stripePaymentIntentId: null,
+    stripeTransferDestination: 'acct_broker_123',
+    paidAt: null,
+    createdAt: new Date('2026-07-03T00:00:00.000Z'),
+    updatedAt: new Date('2026-07-03T00:00:00.000Z'),
   };
 
   function createService(shipment = baseShipment) {
     const prisma = {
+      $transaction: jest.fn((callback) => callback(prisma)),
       shipment: {
         findMany: jest.fn().mockResolvedValue([shipment]),
         findUnique: jest.fn().mockResolvedValue(shipment),
         update: jest.fn().mockResolvedValue(shipment),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          ...shipment,
+          status: ShipmentStatus.DELIVERY_CONFIRMED,
+          confirmedAt: new Date('2026-07-03T00:00:00.000Z'),
+          payment: basePayment,
+        }),
+      },
+      payment: {
+        create: jest.fn().mockResolvedValue(basePayment),
       },
     } as unknown as PrismaService;
 
@@ -48,6 +81,7 @@ describe('ShipmentsService', () => {
       service: new ShipmentsService(prisma),
       prisma,
       shipmentClient: prisma.shipment,
+      paymentClient: prisma.payment,
     };
   }
 
@@ -160,7 +194,7 @@ describe('ShipmentsService', () => {
 
   describe('confirmDelivery', () => {
     it('lets the shipper confirm a delivered shipment', async () => {
-      const { service, shipmentClient } = createService({
+      const { service, shipmentClient, paymentClient } = createService({
         ...baseShipment,
         status: ShipmentStatus.DELIVERED,
         deliveredAt: new Date('2026-07-02T00:00:00.000Z'),
@@ -175,6 +209,29 @@ describe('ShipmentsService', () => {
             status: ShipmentStatus.DELIVERY_CONFIRMED,
             confirmedAt: expect.any(Date),
           },
+        }),
+      );
+      expect(paymentClient.create).toHaveBeenCalledWith({
+        data: {
+          shipmentId: 'shipment-1',
+          shipperId: 'shipper-1',
+          amount: baseShipment.price,
+          grossAmount: baseShipment.price,
+          platformFeeAmount: new Prisma.Decimal(120),
+          brokerAmount: new Prisma.Decimal(1080),
+          currency: 'USD',
+          status: PaymentStatus.PENDING,
+          provider: null,
+          providerRef: null,
+          stripeCheckoutSessionId: null,
+          stripePaymentIntentId: null,
+          stripeTransferDestination: 'acct_broker_123',
+          paidAt: null,
+        },
+      });
+      expect(shipmentClient.findUniqueOrThrow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'shipment-1' },
         }),
       );
     });
